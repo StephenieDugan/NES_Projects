@@ -9776,6 +9776,14 @@
     "Items": [
       {
         "RomFile": {
+          "Path": "C:\\dev\\NES_Projects\\projects\\src/game.nes",
+          "InnerFile": "",
+          "InnerFileIndex": 0
+        },
+        "PatchFile": null
+      },
+      {
+        "RomFile": {
           "Path": "C:\\dev\\projects\\src/game.nes",
           "InnerFile": "",
           "InnerFileIndex": 0
