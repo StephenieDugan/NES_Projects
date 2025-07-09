@@ -168,7 +168,20 @@ remaining_loop:
     CPY #192                               ; Stop after 192 bytes (960 - 768)
     BNE remaining_loop
 
+
+
  	; draw some text on the screen
+
+
+
+
+
+
+
+
+
+
+
 
  	LDA PPU_STATUS ; reset address latch
  	LDA #$20 ; set PPU address to $208A (Row = 4, Column = 10)
@@ -177,7 +190,15 @@ remaining_loop:
  	STA PPU_ADDRESS
 
   ; print text
-
+LDX #0
+textloop:
+  LDA hello_txt, x
+  STA PPU_VRAM_IO
+  INX
+  CMP #0                           ;compares to see if A value is 0
+  BEQ :+
+  JMP textloop
+  :
   ; Reset scroll registers to 0,0 (needed after VRAM access)
   LDA #$00
   STA PPU_SCROLL                         ; Write horizontal scroll
@@ -236,11 +257,13 @@ remaining_loop:
   STA SPRITE_2_ADDR + SPRITE_OFFSET_Y
   STA SPRITE_3_ADDR + SPRITE_OFFSET_Y
 
-  ;LDA #$00
-  ;STA PPU_SCROLL                         ; Write horizontal scroll
-  ;DEC scroll
+
+
+  ;INC scroll
   ;LDA scroll
-  ;STA PPU_SCROLL                         ; Write vertical scroll
+  LDA #$00
+  STA PPU_SCROLL                         ; Write horizontal scroll
+  STA PPU_SCROLL                         ; Write vertical scroll
 
   ; Set OAM address to 0 — required before DMA or manual OAM writes
   LDA #$00
@@ -432,7 +455,7 @@ nametable_data:
   .incbin "assets/screen.nam"
 
 hello_txt:
-.byte 'H','E','L','L', 'O', 0
+.byte 'T','A','C','O', 'C','A','T', 0
 
 ; Startup segment
 .segment "STARTUP"
