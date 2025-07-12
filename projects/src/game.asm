@@ -5,7 +5,7 @@ SPRITE_0_ADDR = oam + 0
 SPRITE_1_ADDR = oam + 4
 SPRITE_2_ADDR = oam + 8
 SPRITE_3_ADDR = oam + 12
-
+SPRITE_BALL_ADDR = oam + 16
 ;*****************************************************************
 ; Define NES cartridge Header
 ;*****************************************************************
@@ -59,6 +59,10 @@ player_x:               .res 1    ; Player X position
 player_y:               .res 1    ; Player Y position
 player_vel_x:           .res 1    ; Player X velocity
 player_vel_y:           .res 1    ; Player Y velocity
+ball_x:                 .res 1    ; Ball X position
+ball_y:                 .res 1    ; Ball Y position
+ball_dx:                .res 1    ; Ball X velocity
+ball_dy:                .res 1    ; Ball Y velocity
 score:                  .res 1    ; Score low byte
 scroll:                 .res 1    ; Scroll screen
 time:                   .res 1    ; Time (60hz = 60 FPS)
@@ -168,20 +172,7 @@ remaining_loop:
     CPY #192                               ; Stop after 192 bytes (960 - 768)
     BNE remaining_loop
 
-
-
  	; draw some text on the screen
-
-
-
-
-
-
-
-
-
-
-
 
  	LDA PPU_STATUS ; reset address latch
  	LDA #$20 ; set PPU address to $208A (Row = 4, Column = 10)
@@ -218,12 +209,26 @@ textloop:
   STA SPRITE_2_ADDR + SPRITE_OFFSET_TILE
   LDA #4
   STA SPRITE_3_ADDR + SPRITE_OFFSET_TILE
+  LDA #5
+  STA SPRITE_BALL_ADDR + SPRITE_OFFSET_TILE
 
   LDA #20
   STA player_y
 
   LDA #30
   STA player_x
+
+  ; ball initialization
+
+  LDA #128
+  STA ball_x
+  LDA #100
+  STA ball_y
+
+  LDA #1
+  STA ball_dx
+  LDA #1
+  STA ball_dy
 
   RTS
 .endproc
@@ -257,13 +262,18 @@ textloop:
   STA SPRITE_2_ADDR + SPRITE_OFFSET_Y
   STA SPRITE_3_ADDR + SPRITE_OFFSET_Y
 
+  ; BALL SPRITE POSITIONING
+  LDA ball_y
+  STA SPRITE_BALL_ADDR + SPRITE_OFFSET_Y
 
+  LDA ball_x
+  STA SPRITE_BALL_ADDR + SPRITE_OFFSET_X
 
   ;INC scroll
   ;LDA scroll
-  LDA #$00
-  STA PPU_SCROLL                         ; Write horizontal scroll
-  STA PPU_SCROLL                         ; Write vertical scroll
+  ; LDA #$00
+  ; STA PPU_SCROLL                         ; Write horizontal scroll
+  ; STA PPU_SCROLL                         ; Write vertical scroll
 
   ; Set OAM address to 0 — required before DMA or manual OAM writes
   LDA #$00
@@ -287,7 +297,7 @@ textloop:
       SEC
       SBC #$01
       STA player_x
-not_left:
+  not_left:
     LDA controller_1
     AND #PAD_R
     BEQ not_right
@@ -315,6 +325,40 @@ not_left:
     RTS                       ; Return to caller
 .endproc
 
+.proc update_ball
+    ; now move our ball
+    lda ball_y ; get the current Y
+    clc
+    adc ball_dy ; add the Y velocity
+    sta ball_y  ; write the change
+    cmp #0 ; have we hit the top border
+    bne NOT_HITTOP
+      lda #1 ; reverse direction
+      sta ball_dy
+  NOT_HITTOP:
+    lda ball_y
+    cmp #210 ; have we hit the bottom border
+    bne NOT_HITBOTTOM
+      lda #$FF ; reverse direction (-1)
+      sta ball_dy
+  NOT_HITBOTTOM:
+    lda ball_x ; get the current x
+    clc
+    adc ball_dx	; add the X velocity
+    sta ball_x
+    cmp #0 ; have we hit the left border
+    bne NOT_HITLEFT
+      lda #1 ; reverse direction
+      sta ball_dx
+  NOT_HITLEFT:
+    lda ball_x
+    cmp #248 ; have we hit the right border
+    bne NOT_HITRIGHT
+      lda #$FF ; reverse direction (-1)
+      sta ball_dx
+  NOT_HITRIGHT:
+  RTS
+.endproc
 ;******************************************************************************
 ; Procedure: main
 ;------------------------------------------------------------------------------
@@ -351,6 +395,7 @@ forever:
     ; Read controller
     JSR read_controller
     JSR update_player
+    JSR update_ball
 
     ; Update sprite data (DMA transfer to PPU OAM)
     JSR update_sprites
