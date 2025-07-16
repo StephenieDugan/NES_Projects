@@ -82,6 +82,8 @@ ball_dx:                .res 1    ; Ball's X velocity (-1 = left, +1 = right)
 ball_dy:                .res 1    ; Ball's Y velocity (-1 = up, +1 = down)
 scroll:                 .res 1    ; Screen scrolling position (not used)
 time:                   .res 1    ; Frame counter incremented each NMI
+p1_collided:            .res 1    ; player 1 collision bool for noise
+p2_collided:            .res 1    ; player 2 collision bool for noise
 prev_time:              .res 1    ; Previous frame's time value
 frame_counter:          .res 1    ; Counts frames for seconds timer
 seconds:                .res 1    ; Seconds elapsed (not displayed)
@@ -111,6 +113,28 @@ oam: .res 256             ; Buffer for all sprite data (64 sprites max)
 ; MAIN PROGRAM CODE
 ;===============================================================================
 .segment "CODE"
+
+;-------------------------------------------------------------------------------
+; Play Noise Sound - Trigger a short noise burst using APU
+;-------------------------------------------------------------------------------
+.proc play_noise_sound
+    ; Enable Noise Channel (bit 3)
+    LDA #%00001000
+    STA $4015
+
+    ; Set constant volume = 8 (bit 4 = 1), no envelope
+    LDA #%00011100     ; %0001 = constant, 1000 = volume
+    STA $400C
+
+    ; Set looping disabled, noise mode normal
+    LDA #%00001111                ;the more non-zeroes deepens the pitch and length (kinda)
+    STA $400E
+
+    ; Trigger length counter (starts the sound)
+    LDA #%00000001     ; Any nonzero value triggers a short beep
+    STA $400F
+    RTS
+.endproc
 
 ;-------------------------------------------------------------------------------
 ; IRQ Handler - Interrupt Request Handler
@@ -176,6 +200,10 @@ oam: .res 256             ; Buffer for all sprite data (64 sprites max)
   ;=== APU (Audio Processing Unit) Initialization ===
   LDX #$40                            ; Load X with $40
   STX $4017                           ; Write to APU Frame Counter register
+  LDA #%00001000
+  STA $4015                           ; Enable Noise Channel permanently
+
+
                                       ; This disables APU frame interrupts
 
   ;=== Stack Pointer Initialization ===
@@ -451,9 +479,25 @@ copy_sprite_data:
   JSR collision_test                  ; Call collision detection subroutine
   BCC no_ball_collision               ; If carry clear, no collision
     ; Collision detected - bounce ball to the right
+    LDA p1_collided
+    BNE already_colliding
+
     LDA #$01                          ; Set ball X velocity to +1 (right)
     STA ball_dx
+    JSR play_noise_sound              ; Play bounce sound
+
+    LDA #$01
+    STA p1_collided
+    JMP end_collision_check
+
+  already_colliding:
+    JMP end_collision_check
+
   no_ball_collision:
+    LDA #$00
+    STA p1_collided
+
+  end_collision_check:
 
   ; Update multi-sprite paddle positions
   ; Player 1 paddle consists of 4 sprites stacked vertically
@@ -525,9 +569,25 @@ copy_sprite_data:
   JSR collision_test                  ; Call collision detection subroutine
   BCC no_ball_collision               ; If carry clear, no collision
     ; Collision detected - bounce ball to the left
-    LDA #$FF                          ; Set ball X velocity to -1 (left)
+    LDA p2_collided
+    BNE already_colliding
+
+    LDA #$FF
     STA ball_dx
+    JSR play_noise_sound
+
+    LDA #$01
+    STA p2_collided
+    JMP end_collision_check
+
+  already_colliding:
+    JMP end_collision_check
+
   no_ball_collision:
+    LDA #$00
+    STA p2_collided
+
+  end_collision_check:
 
   ; Update multi-sprite paddle positions (same as Player 1)
   LDA SPRITE_PLAYER1_ADDR             ; Load main paddle Y position
@@ -635,6 +695,7 @@ main_game_loop:
   AND #PAD_START                      ; Check specifically for START button
   BEQ continue_game                   ; If START not pressed, continue normally
     JSR start_round                   ; START pressed - reset ball position
+    JSR play_noise_sound
   continue_game:
 
   JMP main_game_loop                  ; Loop forever
